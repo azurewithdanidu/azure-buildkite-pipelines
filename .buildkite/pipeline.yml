@@ -47,8 +47,8 @@ steps:
       fi
     agents:
       queue: "default"
-    env:
-      # Add your Azure credentials here or in Buildkite environment variables
-      # AZURE_CLIENT_ID: "your-client-id"
-      # AZURE_CLIENT_SECRET: "your-client-secret"
-      # AZURE_TENANT_ID: "your-tenant-id"
+    # env:
+    #   # Add your Azure credentials here or in Buildkite environment variables
+    #   # AZURE_CLIENT_ID: "your-client-id"
+    #   # AZURE_CLIENT_SECRET: "your-client-secret"
+    #   # AZURE_TENANT_ID: "your-tenant-id"
