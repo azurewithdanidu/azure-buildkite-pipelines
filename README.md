@@ -1,99 +1,115 @@
 # Azure Buildkite Pipelines
 
-Buildkite CI/CD pipeline examples and templates for Azure deployments and Azure CLI integration.
+Buildkite CI/CD pipeline templates for Azure CLI installation and authentication using service principals and Buildkite Secrets.
 
 ## 📁 Repository Structure
 
 ```
 .
 ├── .buildkite/
-│   ├── pipeline.yml          # Multi-OS pipeline with Azure CLI
-│   ├── pipeline-windows.yml  # Windows-specific pipeline
-│   └── pipeline-linux.yml    # Linux-specific pipeline
+│   ├── pipeline.yml                      # Main pipeline (Buildkite Secrets)
+│   ├── pipeline-with-fallback.yml        # Pipeline with env var fallback
+│   └── scripts/
+│       ├── install-az.sh                 # Installs Azure CLI (idempotent)
+│       ├── az-login.sh                   # Login via Buildkite Secrets
+│       ├── az-login-with-fallback.sh     # Login with env var fallback
+│       └── verify-access.sh              # Verifies Azure subscription access
 ├── .github/
 │   ├── agents/
-│   │   └── build-kite-agent.agent.md  # Buildkite agent definition
+│   │   └── build-kite-agent.agent.md    # GitHub Copilot agent definition
 │   └── instructions/
-│       └── .buildkite.instructions.md  # Comprehensive Buildkite reference
-├── PIPELINE-README.md        # Detailed pipeline usage guide
-└── README.md                 # This file
+│       └── .buildkite.instructions.md   # Comprehensive Buildkite reference
+└── README.md
 ```
 
 ## 🚀 Quick Start
 
-### Option 1: Use the Multi-OS Pipeline (Recommended)
+### 1. Configure Azure credentials as Buildkite Secrets
 
-This pipeline works on Linux, macOS, and Windows:
+Go to **Pipeline Settings → Secrets** and add:
+
+| Secret name | Description |
+|---|---|
+| `AZURE_CLIENT_ID` | Service principal App ID |
+| `AZURE_CLIENT_SECRET` | Service principal password |
+| `AZURE_TENANT_ID` | Azure Active Directory tenant ID |
+
+> **Note:** Buildkite Secrets require agent **v3.27.0 or higher**.
+
+**Create a service principal:**
+```bash
+az ad sp create-for-rbac --name "buildkite-agent" \
+  --role Contributor \
+  --scopes /subscriptions/{subscription-id}
+```
+
+### 2. Upload the pipeline
 
 ```bash
 buildkite-agent pipeline upload .buildkite/pipeline.yml
 ```
 
-### Option 2: Use Platform-Specific Pipelines
+Or use the fallback pipeline (supports env vars if secrets aren't configured yet):
 
-**For Windows agents:**
 ```bash
-buildkite-agent pipeline upload .buildkite/pipeline-windows.yml
+buildkite-agent pipeline upload .buildkite/pipeline-with-fallback.yml
 ```
 
-**For Linux agents:**
-```bash
-buildkite-agent pipeline upload .buildkite/pipeline-linux.yml
+## 🎯 How It Works
+
+Each pipeline step calls reusable shell scripts — no logic lives in the YAML:
+
+```
+Step: Install Azure CLI & Login
+  → bash .buildkite/scripts/install-az.sh       # installs az (skips if already present)
+  → bash .buildkite/scripts/az-login.sh         # fetches secrets + az login
+
+Step: Verify Azure Access
+  → bash .buildkite/scripts/install-az.sh       # idempotent - safe to call again
+  → bash .buildkite/scripts/az-login.sh         # re-authenticate (clean environment)
+  → bash .buildkite/scripts/verify-access.sh    # az account show + group list
 ```
 
-## 🎯 What These Pipelines Do
+> Each Buildkite step runs in a **completely clean environment** — the scripts handle install and login in every step that needs them.
 
-All pipelines:
-1. ✅ Install Azure CLI on the agent
-2. ✅ Verify the installation
-3. ✅ Authenticate with Azure using service principal (if credentials provided)
-4. ✅ Use the default Buildkite queue
+## 📜 Scripts Reference
 
-## 📚 Documentation
+| Script | Purpose |
+|---|---|
+| `install-az.sh` | Detects OS (Debian/Ubuntu/RHEL/macOS) and installs Azure CLI. Skips if already installed. |
+| `az-login.sh` | Reads `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` from Buildkite Secrets and runs `az login`. |
+| `az-login-with-fallback.sh` | Same as above but falls back to environment variables if secrets are unavailable. |
+| `verify-access.sh` | Lists the current account and resource groups, and creates a Buildkite annotation. |
 
-- **[PIPELINE-README.md](./PIPELINE-README.md)** - Comprehensive guide on using these pipelines
-- **[.buildkite.instructions.md](./.github/instructions/.buildkite.instructions.md)** - Complete Buildkite reference guide
-- **[.agent.md](./.agent.md)** - Buildkite agent configuration
-
-## 🔑 Azure Authentication
-
-**Configure Buildkite Secrets for secure credential storage:**
-
-1. Go to **Pipeline Settings** → **Secrets**
-2. Add the following secrets:
-   - `AZURE_CLIENT_ID`
-   - `AZURE_CLIENT_SECRET`
-   - `AZURE_TENANT_ID`
-
-The pipeline uses `buildkite-agent secret get` to retrieve credentials securely.
-
-**Create a service principal:**
+Scripts can be tested locally:
 ```bash
-az ad sp create-for-rbac --name "buildkite-agent" --role Contributor --scopes /subscriptions/{subscription-id}
+bash .buildkite/scripts/install-az.sh
 ```
 
-📚 [Buildkite Secrets Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
+## 🔑 Pipeline Variants
+
+### `pipeline.yml` — Production (Buildkite Secrets only)
+
+Uses `buildkite-agent secret get` exclusively. Fails fast if secrets are not configured.
+
+### `pipeline-with-fallback.yml` — Development / Migration
+
+Tries Buildkite Secrets first, falls back to environment variables. Useful when migrating from env vars to secrets.
 
 ## 🛠️ Features
 
-- **Multi-OS Support**: Works on Linux, macOS, and Windows
-- **Automatic Installation**: Azure CLI installed automatically
-- **Secure Authentication**: Service principal support
-- **Default Queue**: Uses standard Buildkite queue
-- **GitHub Copilot Integration**: Custom agent and instructions for AI assistance
+- **Script-based**: All logic in `.sh` files — no YAML escaping, testable locally
+- **Idempotent install**: `install-az.sh` skips if Azure CLI is already present
+- **OS detection**: Supports Debian/Ubuntu (apt), RHEL/CentOS (yum), and macOS (brew)
+- **Secure by default**: Credentials fetched from Buildkite Secrets at runtime
+- **Buildkite annotations**: Rich build output with success/warning/error styles
+- **GitHub Copilot integration**: Custom agent for Buildkite pipeline assistance
 
 ## 📖 Learn More
 
-- [Buildkite Documentation](https://buildkite.com/docs/pipelines)
-- [Azure CLI Documentation](https://docs.microsoft.com/cli/azure/)
-- [Buildkite Plugins](https://buildkite.com/plugins)
-
-## 🤝 Contributing
-
-Contributions welcome! This repository demonstrates:
-- Buildkite pipeline best practices
-- Azure CLI integration patterns
-- GitHub Copilot agent customization
+- [Buildkite Secrets Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
+- [Buildkite Pipeline Documentation](https://buildkite.com/docs/pipelines)
+- [Azure CLI Documentation](https://learn.microsoft.com/cli/azure/)
 
 ## 📄 License
 
