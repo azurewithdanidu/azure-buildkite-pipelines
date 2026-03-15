@@ -27,7 +27,7 @@ steps:
         required: true
         options:
           - label: "sample-subscription-1"
-            value: "cef2460d-0ed3-4c43-ab44-2efa10dd34bb"
+            value: ""
 
       - select: "Location"
         key: "location"

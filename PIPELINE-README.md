@@ -10,10 +10,10 @@ This pipeline demonstrates a simple Buildkite setup that installs Azure CLI and 
 
 ## Features
 
-✅ Multi-OS support (Linux, macOS, Windows)  
-✅ Automatic Azure CLI installation  
-✅ Service Principal authentication support  
-✅ Environment variable configuration
+- Multi-OS support (Linux, macOS, Windows)
+- Automatic Azure CLI installation
+- Service Principal authentication support
+- Environment variable configuration
 
 ## Prerequisites
 
