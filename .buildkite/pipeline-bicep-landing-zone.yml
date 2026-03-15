@@ -49,7 +49,7 @@ steps:
       - "bash .buildkite/scripts/bicep-install.sh"
       - "bash .buildkite/scripts/bicep-build.sh"
     artifact_paths:
-      - "deploy/**/*"
+      - "deploy/**"
     timeout_in_minutes: 15
 
   - wait
@@ -64,7 +64,7 @@ steps:
       - "bash .buildkite/scripts/install-az.sh"
       - "bash .buildkite/scripts/az-login.sh"
       - "bash .buildkite/scripts/bicep-install.sh"
-      - "buildkite-agent artifact download 'deploy/**/*' ."
+      - "buildkite-agent artifact download 'deploy/**' ."
       - "bash .buildkite/scripts/bicep-whatif.sh"
     timeout_in_minutes: 15
 
@@ -88,7 +88,7 @@ steps:
       - "bash .buildkite/scripts/install-az.sh"
       - "bash .buildkite/scripts/az-login.sh"
       - "bash .buildkite/scripts/bicep-install.sh"
-      - "buildkite-agent artifact download 'deploy/**/*' ."
+      - "buildkite-agent artifact download 'deploy/**' ."
       - "bash .buildkite/scripts/bicep-deploy.sh"
     if: build.branch == "main"
     timeout_in_minutes: 30
