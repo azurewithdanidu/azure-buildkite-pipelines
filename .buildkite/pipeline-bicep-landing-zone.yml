@@ -1,0 +1,116 @@
+agents:
+  queue: "default"
+
+# Static defaults — override via block step fields or pipeline env vars.
+env:
+  BICEP_TEMPLATE_FILE_PATH: "bicep/patterns/landing-zone/landing-zone.bicep"
+  BICEP_DEPLOYMENT_NAME: "deploy_landing_zone"
+  AZURE_DEPLOYMENT_TYPE: "subscription"
+
+steps:
+  # -----------------------------------------------------------------------
+  # Step 1: User selects deployment parameters (equivalent to workflow_dispatch)
+  # Values are stored in Buildkite meta-data and read by the scripts below.
+  # -----------------------------------------------------------------------
+  - block: ":gear: Configure Deployment"
+    prompt: "Select the deployment parameters for the landing zone"
+    fields:
+      - select: "Parameter File"
+        key: "parameter_file_path"
+        required: true
+        options:
+          - label: "Workload 1"
+            value: "bicep/patterns/landing-zone/landing-zone.workload1.bicepparam"
+          - label: "Workload 2"
+            value: "bicep/patterns/landing-zone/landing-zone.workload2.bicepparam"
+          - label: "Workload 3"
+            value: "bicep/patterns/landing-zone/landing-zone.workload3.bicepparam"
+          - label: "Workload 4"
+            value: "bicep/patterns/landing-zone/landing-zone.workload4.bicepparam"
+
+      - select: "Target Subscription"
+        key: "subscription_id"
+        required: true
+        options:
+          - label: "[SUBSCRIPTION NAME #1]"
+            value: "[SUBSCRIPTION ID #1]"
+          - label: "[SUBSCRIPTION NAME #2]"
+            value: "[SUBSCRIPTION ID #2]"
+          - label: "[SUBSCRIPTION NAME #3]"
+            value: "[SUBSCRIPTION ID #3]"
+          - label: "[SUBSCRIPTION NAME #4]"
+            value: "[SUBSCRIPTION ID #4]"
+
+      - select: "Location"
+        key: "location"
+        required: true
+        default: "australiaeast"
+        options:
+          - label: "Australia East"
+            value: "australiaeast"
+          - label: "Australia Southeast"
+            value: "australiasoutheast"
+          - label: "Southeast Asia"
+            value: "southeastasia"
+          - label: "East US"
+            value: "eastus"
+          - label: "West US 2"
+            value: "westus2"
+
+  # -----------------------------------------------------------------------
+  # Step 2: Lint & Build — validates and compiles the Bicep template.
+  # Uploads the compiled JSON + parameter files as a build artifact.
+  # -----------------------------------------------------------------------
+  - label: ":bicep: Lint & Build"
+    key: "build"
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login.sh"
+      - "bash .buildkite/scripts/bicep-install.sh"
+      - "bash .buildkite/scripts/bicep-build.sh"
+    artifact_paths:
+      - "deploy/**/*"
+    timeout_in_minutes: 15
+
+  - wait
+
+  # -----------------------------------------------------------------------
+  # Step 3: What-If — shows what would change without making changes.
+  # Downloads the built artifact, runs az deployment what-if.
+  # -----------------------------------------------------------------------
+  - label: ":mag: What-If Deploy"
+    key: "whatif"
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login.sh"
+      - "bash .buildkite/scripts/bicep-install.sh"
+      - "buildkite-agent artifact download 'deploy/**/*' ."
+      - "bash .buildkite/scripts/bicep-whatif.sh"
+    timeout_in_minutes: 15
+
+  - wait
+
+  # -----------------------------------------------------------------------
+  # Step 4: Manual approval gate — only shown on main branch.
+  # Reviewer should check the What-If output above before approving.
+  # -----------------------------------------------------------------------
+  - block: ":rocket: Approve Deployment to Azure"
+    prompt: "Review the What-If output above. Approve to deploy to Azure."
+    if: build.branch == "main"
+
+  # -----------------------------------------------------------------------
+  # Step 5: Deploy — performs the actual Azure deployment.
+  # Only runs on the main branch after manual approval.
+  # -----------------------------------------------------------------------
+  - label: ":azure: Deploy to Azure"
+    key: "deploy"
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login.sh"
+      - "bash .buildkite/scripts/bicep-install.sh"
+      - "buildkite-agent artifact download 'deploy/**/*' ."
+      - "bash .buildkite/scripts/bicep-deploy.sh"
+    if: build.branch == "main"
+    timeout_in_minutes: 30
+    concurrency: 1
+    concurrency_group: "bicep-landing-zone-deploy"
