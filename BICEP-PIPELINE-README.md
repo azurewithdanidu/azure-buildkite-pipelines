@@ -55,7 +55,11 @@ az ad sp create-for-rbac \
   --scopes /subscriptions/{subscription-id}
 ```
 
+For subscription-scope Bicep deployments that assign roles (e.g. landing zone patterns), the service principal also needs the `Owner` role, or `Contributor` plus `User Access Administrator`.
+
 > Buildkite Secrets require agent **v3.27.0 or higher**.
+
+For full authentication setup and OIDC considerations, see the [Authentication section in README.md](./README.md#authentication--service-principal-with-buildkite-secrets).
 
 ### 2. Agent requirements
 
@@ -73,11 +77,11 @@ Set these at the top of `pipeline-bicep-landing-zone.yml` or in Buildkite Pipeli
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `BICEP_TEMPLATE_FILE_PATH` | ✅ | `bicep/patterns/landing-zone/landing-zone.bicep` | Path to the `.bicep` template |
-| `BICEP_DEPLOYMENT_NAME` | ✅ | `deploy_landing_zone` | Name of the ARM deployment |
-| `AZURE_DEPLOYMENT_TYPE` | ✅ | `subscription` | Scope: `subscription` \| `tenant` \| `managementgroup` \| `resourcegroup` |
-| `AZURE_MANAGEMENT_GROUP_ID` | ⚠️ | — | Required when `AZURE_DEPLOYMENT_TYPE=managementgroup` |
-| `AZURE_RESOURCE_GROUP_NAME` | ⚠️ | — | Required when `AZURE_DEPLOYMENT_TYPE=resourcegroup` |
+| `BICEP_TEMPLATE_FILE_PATH` | Yes | `bicep/patterns/landing-zone/landing-zone.bicep` | Path to the `.bicep` template |
+| `BICEP_DEPLOYMENT_NAME` | Yes | `deploy_landing_zone` | Name of the ARM deployment |
+| `AZURE_DEPLOYMENT_TYPE` | Yes | `subscription` | Scope: `subscription` \| `tenant` \| `managementgroup` \| `resourcegroup` |
+| `AZURE_MANAGEMENT_GROUP_ID` | Conditional | — | Required when `AZURE_DEPLOYMENT_TYPE=managementgroup` |
+| `AZURE_RESOURCE_GROUP_NAME` | Conditional | — | Required when `AZURE_DEPLOYMENT_TYPE=resourcegroup` |
 
 ### Block step (runtime inputs)
 
@@ -213,7 +217,7 @@ The scripts (`bicep-build.sh`, `bicep-whatif.sh`, `bicep-deploy.sh`) are reusabl
 |---|---|---|
 | `az: command not found` | Azure CLI not installed | `install-az.sh` handles this; check agent OS compatibility |
 | `Bicep CLI not found` | Bicep not installed | `bicep-install.sh` runs `az bicep install`; ensure az is auth'd first |
-| `Compiled template not found` | Build artifact not downloaded | Ensure `buildkite-agent artifact download 'deploy/**/*' .` runs before whatif/deploy scripts |
+| `No artifacts found` / `Compiled template not found` | Build artifact not downloaded or wrong glob pattern | Use `buildkite-agent artifact download 'deploy/**' .` (not `deploy/**/*`) in whatif and deploy steps |
 | `AZURE_SUBSCRIPTION_ID is required` | Block step value not set | Check the block step field key is exactly `subscription_id` |
 | Block step not appearing | Pipeline not on `main` | Block steps appear for all branches; the deploy step is `main`-only |
 
