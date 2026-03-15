@@ -43,29 +43,75 @@ steps:
         command: |
           set -euo pipefail
           
-          echo "--- :key: Fetching Azure credentials from Buildkite Secrets"
+          echo "--- :mag: Checking secret retrieval method"
           
-          # Fetch secrets using buildkite-agent secret get
-          export AZURE_CLIENT_ID=$(buildkite-agent secret get AZURE_CLIENT_ID)
-          export AZURE_CLIENT_SECRET=$(buildkite-agent secret get AZURE_CLIENT_SECRET)
-          export AZURE_TENANT_ID=$(buildkite-agent secret get AZURE_TENANT_ID)
+          # Try to fetch secrets and capture any errors
+          echo "Attempting to fetch AZURE_CLIENT_ID..."
+          if AZURE_CLIENT_ID=$(buildkite-agent secret get AZURE_CLIENT_ID 2>&1); then
+            echo "✅ AZURE_CLIENT_ID retrieved successfully (length: ${#AZURE_CLIENT_ID})"
+            export AZURE_CLIENT_ID
+          else
+            echo "❌ Failed to fetch AZURE_CLIENT_ID"
+            echo "Error: $AZURE_CLIENT_ID"
+            SECRET_ERROR=1
+          fi
           
-          # Validate secrets were retrieved
-          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$AZURE_TENANT_ID" ]; then
-            echo "--- :x: Failed to retrieve Azure credentials"
+          echo "Attempting to fetch AZURE_CLIENT_SECRET..."
+          if AZURE_CLIENT_SECRET=$(buildkite-agent secret get AZURE_CLIENT_SECRET 2>&1); then
+            echo "✅ AZURE_CLIENT_SECRET retrieved successfully (length: ${#AZURE_CLIENT_SECRET})"
+            export AZURE_CLIENT_SECRET
+          else
+            echo "❌ Failed to fetch AZURE_CLIENT_SECRET"
+            echo "Error: $AZURE_CLIENT_SECRET"
+            SECRET_ERROR=1
+          fi
+          
+          echo "Attempting to fetch AZURE_TENANT_ID..."
+          if AZURE_TENANT_ID=$(buildkite-agent secret get AZURE_TENANT_ID 2>&1); then
+            echo "✅ AZURE_TENANT_ID retrieved successfully (length: ${#AZURE_TENANT_ID})"
+            export AZURE_TENANT_ID
+          else
+            echo "❌ Failed to fetch AZURE_TENANT_ID"
+            echo "Error: $AZURE_TENANT_ID"
+            SECRET_ERROR=1
+          fi
+          
+          # If secret retrieval failed, show detailed error
+          if [ "${SECRET_ERROR:-0}" -eq 1 ]; then
+            echo "--- :x: Secret retrieval failed"
+            
+            # Create detailed error annotation
             buildkite-agent annotate --style error --context azure-login <<EOF
-          ### :x: Azure Credentials Missing
+          ### :x: Failed to Retrieve Buildkite Secrets
           
-          Failed to retrieve one or more secrets. Please ensure the following secrets are configured in Buildkite:
+          **Possible causes:**
           
-          1. Go to **Pipeline Settings** → **Secrets**
-          2. Add these secrets:
-             - \`AZURE_CLIENT_ID\`
-             - \`AZURE_CLIENT_SECRET\`
-             - \`AZURE_TENANT_ID\`
+          1. **Secrets not configured properly**
+             - Go to Pipeline Settings → Secrets
+             - Ensure secrets are named exactly: \`AZURE_CLIENT_ID\`, \`AZURE_CLIENT_SECRET\`, \`AZURE_TENANT_ID\`
           
-          [View Buildkite Secrets Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
+          2. **Agent doesn't have access**
+             - Check if your agent version supports secrets
+             - Run \`buildkite-agent --version\` (needs v3.27.0+)
+          
+          3. **Wrong secret store**
+             - If using a cluster, secrets must be in the correct cluster
+             - Check cluster assignment in agent configuration
+          
+          **Alternative: Use Environment Variables**
+          
+          If secrets aren't working, you can temporarily use environment variables:
+          - Go to Pipeline Settings → Environment Variables
+          - Add \`AZURE_CLIENT_ID\`, \`AZURE_CLIENT_SECRET\`, \`AZURE_TENANT_ID\`
+          
+          [Buildkite Secrets Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
           EOF
+            exit 1
+          fi
+          
+          # Validate all secrets are non-empty
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$AZURE_TENANT_ID" ]; then
+            echo "--- :x: One or more secrets are empty"
             exit 1
           fi
           
