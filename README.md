@@ -57,18 +57,22 @@ All pipelines:
 
 ## 🔑 Azure Authentication
 
-To enable Azure login, configure these environment variables in your Buildkite pipeline settings:
+**Configure Buildkite Secrets for secure credential storage:**
 
-```bash
-AZURE_CLIENT_ID=<your-client-id>
-AZURE_CLIENT_SECRET=<your-client-secret>
-AZURE_TENANT_ID=<your-tenant-id>
-```
+1. Go to **Pipeline Settings** → **Secrets**
+2. Add the following secrets:
+   - `AZURE_CLIENT_ID`
+   - `AZURE_CLIENT_SECRET`
+   - `AZURE_TENANT_ID`
+
+The pipeline uses `buildkite-agent secret get` to retrieve credentials securely.
 
 **Create a service principal:**
 ```bash
-az ad sp create-for-rbac --name "buildkite-agent" --role Contributor
+az ad sp create-for-rbac --name "buildkite-agent" --role Contributor --scopes /subscriptions/{subscription-id}
 ```
+
+📚 [Buildkite Secrets Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
 
 ## 🛠️ Features
 

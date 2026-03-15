@@ -27,20 +27,34 @@ This pipeline demonstrates a simple Buildkite setup that installs Azure CLI and 
 
 For `az login` to work, you need one of the following:
 
-#### Option A: Service Principal (Recommended for CI/CD)
+#### Option A: Buildkite Secrets (Recommended for CI/CD)
 
-Create a service principal and set these environment variables in Buildkite:
+**The pipeline now uses Buildkite Secrets for secure credential management.**
 
-```bash
-AZURE_CLIENT_ID=<your-app-id>
-AZURE_CLIENT_SECRET=<your-password>
-AZURE_TENANT_ID=<your-tenant-id>
-```
+1. Navigate to your pipeline in Buildkite
+2. Go to **Pipeline Settings** → **Secrets**
+3. Click **New Secret** and add each of the following:
+   - Secret Name: `AZURE_CLIENT_ID`
+   - Secret Name: `AZURE_CLIENT_SECRET`
+   - Secret Name: `AZURE_TENANT_ID`
+
+The pipeline retrieves secrets using `buildkite-agent secret get` at runtime.
 
 **Create a service principal:**
 ```bash
-az ad sp create-for-rbac --name "buildkite-agent" --role Contributor
+az ad sp create-for-rbac --name "buildkite-agent" --role Contributor --scopes /subscriptions/{subscription-id}
 ```
+
+Output (use these values in your secrets):
+```json
+{
+  "appId": "your-client-id",        // → AZURE_CLIENT_ID
+  "password": "your-client-secret",  // → AZURE_CLIENT_SECRET
+  "tenant": "your-tenant-id"         // → AZURE_TENANT_ID
+}
+```
+
+📚 [Buildkite Secrets Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
 
 #### Option B: Managed Identity
 
