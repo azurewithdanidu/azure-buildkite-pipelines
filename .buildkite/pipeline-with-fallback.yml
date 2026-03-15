@@ -8,26 +8,23 @@ env:
   # AZURE_TENANT_ID: "your-tenant-id"
 
 steps:
-  - group: ":azure: Azure Setup"
+  - label: ":azure: Install Azure CLI & Login"
     key: "azure-setup"
-    steps:
-      - label: ":package: Install Azure CLI"
-        key: "install-cli"
-        command: |
+    command: |
           set -euo pipefail
           
           echo "--- :package: Installing Azure CLI"
           
           # Detect OS and install accordingly
-          if [ -x "$(command -v apt-get)" ]; then
+          if [ -x "$$(command -v apt-get)" ]; then
             echo "Detected Debian/Ubuntu"
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          elif [ -x "$(command -v yum)" ]; then
+          elif [ -x "$$(command -v yum)" ]; then
             echo "Detected RHEL/CentOS"
             sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
             sudo sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
             sudo yum install -y azure-cli
-          elif [ -x "$(command -v brew)" ]; then
+          elif [ -x "$$(command -v brew)" ]; then
             echo "Detected macOS"
             brew update && brew install azure-cli
           else
@@ -35,23 +32,8 @@ steps:
             exit 1
           fi
           
-          echo "--- :white_check_mark: Verifying installation"
+          echo "--- :white_check_mark: Verifying Azure CLI installation"
           az version
-          
-          echo "--- :wrench: Agent information"
-          echo "Buildkite Agent version:"
-          buildkite-agent --version
-        retry:
-          automatic:
-            - exit_status: "*"
-              limit: 2
-        timeout_in_minutes: 10
-
-      - label: ":key: Azure Authentication"
-        key: "azure-login"
-        depends_on: "install-cli"
-        command: |
-          set -euo pipefail
           
           echo "--- :mag: Checking authentication method"
           
