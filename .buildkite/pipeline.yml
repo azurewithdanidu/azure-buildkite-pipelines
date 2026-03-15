@@ -47,37 +47,37 @@ steps:
           
           # Try to fetch secrets and capture any errors
           echo "Attempting to fetch AZURE_CLIENT_ID..."
-          if AZURE_CLIENT_ID=$(buildkite-agent secret get AZURE_CLIENT_ID 2>&1); then
-            echo "✅ AZURE_CLIENT_ID retrieved successfully (length: ${#AZURE_CLIENT_ID})"
+          if AZURE_CLIENT_ID=$$(buildkite-agent secret get AZURE_CLIENT_ID 2>&1); then
+            echo "✅ AZURE_CLIENT_ID retrieved successfully (length: $${#AZURE_CLIENT_ID})"
             export AZURE_CLIENT_ID
           else
             echo "❌ Failed to fetch AZURE_CLIENT_ID"
-            echo "Error: $AZURE_CLIENT_ID"
+            echo "Error: $$AZURE_CLIENT_ID"
             SECRET_ERROR=1
           fi
           
           echo "Attempting to fetch AZURE_CLIENT_SECRET..."
-          if AZURE_CLIENT_SECRET=$(buildkite-agent secret get AZURE_CLIENT_SECRET 2>&1); then
-            echo "✅ AZURE_CLIENT_SECRET retrieved successfully (length: ${#AZURE_CLIENT_SECRET})"
+          if AZURE_CLIENT_SECRET=$$(buildkite-agent secret get AZURE_CLIENT_SECRET 2>&1); then
+            echo "✅ AZURE_CLIENT_SECRET retrieved successfully (length: $${#AZURE_CLIENT_SECRET})"
             export AZURE_CLIENT_SECRET
           else
             echo "❌ Failed to fetch AZURE_CLIENT_SECRET"
-            echo "Error: $AZURE_CLIENT_SECRET"
+            echo "Error: $$AZURE_CLIENT_SECRET"
             SECRET_ERROR=1
           fi
           
           echo "Attempting to fetch AZURE_TENANT_ID..."
-          if AZURE_TENANT_ID=$(buildkite-agent secret get AZURE_TENANT_ID 2>&1); then
-            echo "✅ AZURE_TENANT_ID retrieved successfully (length: ${#AZURE_TENANT_ID})"
+          if AZURE_TENANT_ID=$$(buildkite-agent secret get AZURE_TENANT_ID 2>&1); then
+            echo "✅ AZURE_TENANT_ID retrieved successfully (length: $${#AZURE_TENANT_ID})"
             export AZURE_TENANT_ID
           else
             echo "❌ Failed to fetch AZURE_TENANT_ID"
-            echo "Error: $AZURE_TENANT_ID"
+            echo "Error: $$AZURE_TENANT_ID"
             SECRET_ERROR=1
           fi
           
           # If secret retrieval failed, show detailed error
-          if [ "${SECRET_ERROR:-0}" -eq 1 ]; then
+          if [ "$${SECRET_ERROR:-0}" -eq 1 ]; then
             echo "--- :x: Secret retrieval failed"
             
             # Create detailed error annotation
@@ -110,42 +110,42 @@ steps:
           fi
           
           # Validate all secrets are non-empty
-          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$AZURE_TENANT_ID" ]; then
+          if [ -z "$$AZURE_CLIENT_ID" ] || [ -z "$$AZURE_CLIENT_SECRET" ] || [ -z "$$AZURE_TENANT_ID" ]; then
             echo "--- :x: One or more secrets are empty"
             exit 1
           fi
           
           echo "--- :azure: Logging in to Azure"
           az login --service-principal \
-            --username "$AZURE_CLIENT_ID" \
-            --password "$AZURE_CLIENT_SECRET" \
-            --tenant "$AZURE_TENANT_ID"
+            --username "$$AZURE_CLIENT_ID" \
+            --password "$$AZURE_CLIENT_SECRET" \
+            --tenant "$$AZURE_TENANT_ID"
           
           echo "--- :white_check_mark: Authentication successful"
           
           # Get account information
-          ACCOUNT_INFO=$(az account show --output json)
-          ACCOUNT_NAME=$(echo "$ACCOUNT_INFO" | jq -r '.name')
-          SUBSCRIPTION_ID=$(echo "$ACCOUNT_INFO" | jq -r '.id')
+          ACCOUNT_INFO=$$(az account show --output json)
+          ACCOUNT_NAME=$$(echo "$$ACCOUNT_INFO" | jq -r '.name')
+          SUBSCRIPTION_ID=$$(echo "$$ACCOUNT_INFO" | jq -r '.id')
           
           # Display account info
           echo "Logged in to Azure:"
-          echo "  Account: $ACCOUNT_NAME"
-          echo "  Subscription ID: $SUBSCRIPTION_ID"
+          echo "  Account: $$ACCOUNT_NAME"
+          echo "  Subscription ID: $$SUBSCRIPTION_ID"
           
           # Create success annotation
           buildkite-agent annotate --style success --context azure-login <<EOF
           ### :white_check_mark: Azure Authentication Successful
           
-          **Account:** \`$ACCOUNT_NAME\`  
-          **Subscription ID:** \`$SUBSCRIPTION_ID\`  
-          **Tenant ID:** \`${AZURE_TENANT_ID:0:8}...\`
+          **Account:** \`$$ACCOUNT_NAME\`  
+          **Subscription ID:** \`$$SUBSCRIPTION_ID\`  
+          **Tenant ID:** \`$${AZURE_TENANT_ID:0:8}...\`
           
           Azure CLI is now authenticated and ready for use.
           EOF
           
           # Store subscription ID for later steps
-          buildkite-agent meta-data set "azure-subscription-id" "$SUBSCRIPTION_ID"
+          buildkite-agent meta-data set "azure-subscription-id" "$$SUBSCRIPTION_ID"
         retry:
           automatic:
             - exit_status: "*"
@@ -163,26 +163,26 @@ steps:
       echo "--- :mag: Verifying Azure access"
       
       # Fetch credentials again for this step
-      export AZURE_CLIENT_ID=$(buildkite-agent secret get AZURE_CLIENT_ID)
-      export AZURE_CLIENT_SECRET=$(buildkite-agent secret get AZURE_CLIENT_SECRET)
-      export AZURE_TENANT_ID=$(buildkite-agent secret get AZURE_TENANT_ID)
+      export AZURE_CLIENT_ID=$$(buildkite-agent secret get AZURE_CLIENT_ID)
+      export AZURE_CLIENT_SECRET=$$(buildkite-agent secret get AZURE_CLIENT_SECRET)
+      export AZURE_TENANT_ID=$$(buildkite-agent secret get AZURE_TENANT_ID)
       
       # Login again (each step runs in clean environment)
       az login --service-principal \
-        --username "$AZURE_CLIENT_ID" \
-        --password "$AZURE_CLIENT_SECRET" \
-        --tenant "$AZURE_TENANT_ID" --output none
+        --username "$$AZURE_CLIENT_ID" \
+        --password "$$AZURE_CLIENT_SECRET" \
+        --tenant "$$AZURE_TENANT_ID" --output none
       
       # List resource groups
       echo "Available resource groups:"
       az group list --output table
       
       # Create verification annotation
-      RG_COUNT=$(az group list --query "length([])" --output tsv)
+      RG_COUNT=$$(az group list --query "length([])" --output tsv)
       buildkite-agent annotate --style info --context azure-verify <<EOF
       ### :mag: Azure Access Verified
       
-      **Resource Groups Found:** $RG_COUNT
+      **Resource Groups Found:** $$RG_COUNT
       
       You can now use Azure CLI in subsequent steps.
       EOF
