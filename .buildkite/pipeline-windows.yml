@@ -1,0 +1,40 @@
+steps:
+  - label: ":azure: Install Azure CLI and Login (Windows)"
+    command: |
+      # Install Azure CLI on Windows
+      Write-Host "Installing Azure CLI on Windows..."
+      
+      # Download and install Azure CLI
+      $ProgressPreference = 'SilentlyContinue'
+      Invoke-WebRequest -Uri https://aka.ms/installazurecliwindows -OutFile .\AzureCLI.msi
+      Start-Process msiexec.exe -Wait -ArgumentList '/I AzureCLI.msi /quiet /norestart'
+      Remove-Item .\AzureCLI.msi
+      
+      # Refresh PATH for current session
+      $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+      
+      # Verify installation
+      az version
+      
+      # Login with service principal if credentials are available
+      if ($env:AZURE_CLIENT_ID -and $env:AZURE_CLIENT_SECRET -and $env:AZURE_TENANT_ID) {
+          Write-Host "Logging in with service principal..."
+          az login --service-principal `
+            --username $env:AZURE_CLIENT_ID `
+            --password $env:AZURE_CLIENT_SECRET `
+            --tenant $env:AZURE_TENANT_ID
+          
+          # Verify login
+          az account show
+      } else {
+          Write-Host "Azure credentials not found."
+          Write-Host "Set AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_TENANT_ID environment variables."
+      }
+    agents:
+      queue: "default"
+      os: "windows"
+    env:
+      # Configure these in Buildkite Pipeline Settings → Environment Variables
+      # AZURE_CLIENT_ID: "your-client-id"
+      # AZURE_CLIENT_SECRET: "your-client-secret"
+      # AZURE_TENANT_ID: "your-tenant-id"
