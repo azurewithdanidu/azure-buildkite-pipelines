@@ -3,8 +3,8 @@ agents:
 
 # Static defaults — override via block step fields or pipeline env vars.
 env:
-  BICEP_TEMPLATE_FILE_PATH: "bicep/patterns/landing-zone/landing-zone.bicep"
-  BICEP_DEPLOYMENT_NAME: "deploy_landing_zone"
+  BICEP_TEMPLATE_FILE_PATH: "bicep/main.bicep"
+  BICEP_DEPLOYMENT_NAME: "deploy_bicep"
   AZURE_DEPLOYMENT_TYPE: "subscription"
 
 steps:
@@ -20,26 +20,14 @@ steps:
         required: true
         options:
           - label: "Workload 1"
-            value: "bicep/patterns/landing-zone/landing-zone.workload1.bicepparam"
-          - label: "Workload 2"
-            value: "bicep/patterns/landing-zone/landing-zone.workload2.bicepparam"
-          - label: "Workload 3"
-            value: "bicep/patterns/landing-zone/landing-zone.workload3.bicepparam"
-          - label: "Workload 4"
-            value: "bicep/patterns/landing-zone/landing-zone.workload4.bicepparam"
+            value: "bicep/main.bicepparam"
 
       - select: "Target Subscription"
         key: "subscription_id"
         required: true
         options:
-          - label: "[SUBSCRIPTION NAME #1]"
-            value: "[SUBSCRIPTION ID #1]"
-          - label: "[SUBSCRIPTION NAME #2]"
-            value: "[SUBSCRIPTION ID #2]"
-          - label: "[SUBSCRIPTION NAME #3]"
-            value: "[SUBSCRIPTION ID #3]"
-          - label: "[SUBSCRIPTION NAME #4]"
-            value: "[SUBSCRIPTION ID #4]"
+          - label: "sample-subscription-1"
+            value: "cef2460d-0ed3-4c43-ab44-2efa10dd34bb"
 
       - select: "Location"
         key: "location"
@@ -48,14 +36,6 @@ steps:
         options:
           - label: "Australia East"
             value: "australiaeast"
-          - label: "Australia Southeast"
-            value: "australiasoutheast"
-          - label: "Southeast Asia"
-            value: "southeastasia"
-          - label: "East US"
-            value: "eastus"
-          - label: "West US 2"
-            value: "westus2"
 
   # -----------------------------------------------------------------------
   # Step 2: Lint & Build — validates and compiles the Bicep template.
