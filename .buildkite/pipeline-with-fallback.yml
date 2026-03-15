@@ -2,7 +2,7 @@ agents:
   queue: "default"
 
 env:
-  # If using environment variables instead of secrets, uncomment and set these:
+  # Uncomment to use environment variables as fallback when Buildkite Secrets are not configured:
   # AZURE_CLIENT_ID: "your-client-id"
   # AZURE_CLIENT_SECRET: "your-client-secret"
   # AZURE_TENANT_ID: "your-tenant-id"
@@ -10,241 +10,22 @@ env:
 steps:
   - label: ":azure: Install Azure CLI & Login"
     key: "azure-setup"
-    command: |
-          set -euo pipefail
-          
-          echo "--- :package: Installing Azure CLI"
-          
-          # Check if az is already installed
-          if command -v az >/dev/null 2>&1; then
-            echo "✅ Azure CLI already installed: $$(az --version | head -1)"
-          else
-            echo "Azure CLI not found, installing..."
-            
-            if [ -x "$$(command -v apt-get)" ]; then
-              echo "Detected Debian/Ubuntu"
-              sudo apt-get update -y && sudo apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
-              curl -sL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/microsoft.gpg
-              AZ_DIST=$$(lsb_release -cs)
-              echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $${AZ_DIST} main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
-              sudo apt-get update -y && sudo apt-get install -y azure-cli
-            elif [ -x "$$(command -v yum)" ]; then
-              echo "Detected RHEL/CentOS"
-              sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-              sudo sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
-              sudo yum install -y azure-cli
-            elif [ -x "$$(command -v brew)" ]; then
-              echo "Detected macOS"
-              brew update && brew install azure-cli
-              export PATH="/usr/local/bin:$${PATH}"
-            else
-              echo "Unsupported OS for automatic installation"
-              exit 1
-            fi
-            
-            # Refresh shell command cache after installation
-            hash -r 2>/dev/null || true
-            
-            if ! command -v az >/dev/null 2>&1; then
-              echo "❌ Azure CLI installation failed - az not found in PATH"
-              echo "PATH: $${PATH}"
-              echo "Searching for az binary:"
-              find /usr /opt -name az -type f 2>/dev/null || true
-              exit 1
-            fi
-          fi
-          
-          echo "--- :white_check_mark: Azure CLI ready"
-          az version
-          
-          echo "--- :mag: Checking authentication method"
-          
-          # First, try to get from Buildkite Secrets
-          USE_SECRETS=true
-          
-          echo "Checking Buildkite Agent version..."
-          buildkite-agent --version
-          
-          echo ""
-          echo "Attempting to fetch secrets from Buildkite..."
-          
-          # Try secrets first
-          if CLIENT_ID=$$(buildkite-agent secret get AZURE_CLIENT_ID 2>&1); then
-            if [ -n "$$CLIENT_ID" ] && [ "$$CLIENT_ID" != "error:"* ]; then
-              export AZURE_CLIENT_ID="$$CLIENT_ID"
-              echo "✅ AZURE_CLIENT_ID retrieved from secrets"
-            else
-              echo "⚠️  AZURE_CLIENT_ID secret exists but is empty"
-              USE_SECRETS=false
-            fi
-          else
-            echo "⚠️  Could not fetch AZURE_CLIENT_ID from secrets"
-            echo "Error output: $$CLIENT_ID"
-            USE_SECRETS=false
-          fi
-          
-          if CLIENT_SECRET=$$(buildkite-agent secret get AZURE_CLIENT_SECRET 2>&1); then
-            if [ -n "$$CLIENT_SECRET" ] && [ "$$CLIENT_SECRET" != "error:"* ]; then
-              export AZURE_CLIENT_SECRET="$$CLIENT_SECRET"
-              echo "✅ AZURE_CLIENT_SECRET retrieved from secrets"
-            else
-              echo "⚠️  AZURE_CLIENT_SECRET secret exists but is empty"
-              USE_SECRETS=false
-            fi
-          else
-            echo "⚠️  Could not fetch AZURE_CLIENT_SECRET from secrets"
-            USE_SECRETS=false
-          fi
-          
-          if TENANT_ID=$$(buildkite-agent secret get AZURE_TENANT_ID 2>&1); then
-            if [ -n "$$TENANT_ID" ] && [ "$$TENANT_ID" != "error:"* ]; then
-              export AZURE_TENANT_ID="$$TENANT_ID"
-              echo "✅ AZURE_TENANT_ID retrieved from secrets"
-            else
-              echo "⚠️  AZURE_TENANT_ID secret exists but is empty"
-              USE_SECRETS=false
-            fi
-          else
-            echo "⚠️  Could not fetch AZURE_TENANT_ID from secrets"
-            USE_SECRETS=false
-          fi
-          
-          # Fallback to environment variables if secrets failed
-          if [ "$$USE_SECRETS" = false ]; then
-            echo ""
-            echo "--- :warning: Falling back to environment variables"
-            
-            if [ -n "$${AZURE_CLIENT_ID:-}" ] && [ -n "$${AZURE_CLIENT_SECRET:-}" ] && [ -n "$${AZURE_TENANT_ID:-}" ]; then
-              echo "✅ Using credentials from environment variables"
-              
-              buildkite-agent annotate --style warning --context azure-login <<EOF
-          ### :warning: Using Environment Variables (Not Secrets)
-          
-          Buildkite Secrets failed, but environment variables are configured.
-          
-          **For production, configure Buildkite Secrets:**
-          1. Pipeline Settings → Secrets
-          2. Add: \`AZURE_CLIENT_ID\`, \`AZURE_CLIENT_SECRET\`, \`AZURE_TENANT_ID\`
-          
-          **Troubleshooting Secrets:**
-          - Agent version must be v3.27.0 or higher
-          - Secrets must be in the same cluster as the pipeline
-          - Check agent logs for secret resolution errors
-          EOF
-            else
-              echo "❌ No credentials found in secrets or environment variables"
-              
-              buildkite-agent annotate --style error --context azure-login <<EOF
-          ### :x: Azure Credentials Not Found
-          
-          **Option 1: Use Buildkite Secrets (Recommended)**
-          1. Pipeline Settings → Secrets
-          2. Add: \`AZURE_CLIENT_ID\`, \`AZURE_CLIENT_SECRET\`, \`AZURE_TENANT_ID\`
-          
-          **Option 2: Use Environment Variables (Testing Only)**
-          1. Pipeline Settings → Environment Variables
-          2. Add the same credentials
-          
-          **Check:**
-          - Agent version: \`buildkite-agent --version\` (needs v3.27.0+)
-          - Cluster configuration matches your pipeline
-          
-          [Documentation](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
-          EOF
-              exit 1
-            fi
-          fi
-          
-          # Validate all credentials are present
-          if [ -z "$${AZURE_CLIENT_ID:-}" ] || [ -z "$${AZURE_CLIENT_SECRET:-}" ] || [ -z "$${AZURE_TENANT_ID:-}" ]; then
-            echo "❌ Missing one or more Azure credentials"
-            exit 1
-          fi
-          
-          echo ""
-          echo "--- :azure: Logging in to Azure"
-          echo "Using client ID: $${AZURE_CLIENT_ID:0:8}..."
-          echo "Using tenant ID: $${AZURE_TENANT_ID:0:8}..."
-          
-          az login --service-principal \
-            --username "$$AZURE_CLIENT_ID" \
-            --password "$$AZURE_CLIENT_SECRET" \
-            --tenant "$$AZURE_TENANT_ID"
-          
-          echo "--- :white_check_mark: Authentication successful"
-          
-          # Get account information
-          ACCOUNT_INFO=$$(az account show --output json)
-          ACCOUNT_NAME=$$(echo "$$ACCOUNT_INFO" | jq -r '.name')
-          SUBSCRIPTION_ID=$$(echo "$$ACCOUNT_INFO" | jq -r '.id')
-          
-          # Display account info
-          echo ""
-          echo "Logged in to Azure:"
-          echo "  Account: $$ACCOUNT_NAME"
-          echo "  Subscription: $$SUBSCRIPTION_ID"
-          
-          # Create success annotation
-          if [ "$$USE_SECRETS" = true ]; then
-            AUTH_METHOD="Buildkite Secrets :white_check_mark:"
-          else
-            AUTH_METHOD="Environment Variables :warning:"
-          fi
-          
-          buildkite-agent annotate --style success --context azure-status <<EOF
-          ### :white_check_mark: Azure Authentication Successful
-          
-          **Method:** $$AUTH_METHOD  
-          **Account:** \`$$ACCOUNT_NAME\`  
-          **Subscription:** \`$$SUBSCRIPTION_ID\`  
-          **Tenant:** \`$${AZURE_TENANT_ID:0:8}...\`
-          EOF
-          
-          # Store for later steps
-          buildkite-agent meta-data set "azure-subscription-id" "$$SUBSCRIPTION_ID"
-        retry:
-          automatic:
-            - exit_status: "*"
-              limit: 1
-        timeout_in_minutes: 5
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login-with-fallback.sh"
+    retry:
+      automatic:
+        - exit_status: "*"
+          limit: 2
+    timeout_in_minutes: 10
 
   - wait
 
   - label: ":white_check_mark: Verify Azure Access"
     key: "verify-access"
-    depends_on: "azure-login"
-    command: |
-      set -euo pipefail
-      
-      echo "--- :mag: Verifying Azure access"
-      
-      # Retrieve credentials (try secrets first, fallback to env vars)
-      if CLIENT_ID=$$(buildkite-agent secret get AZURE_CLIENT_ID 2>/dev/null) && [ -n "$$CLIENT_ID" ]; then
-        export AZURE_CLIENT_ID="$$CLIENT_ID"
-        export AZURE_CLIENT_SECRET=$$(buildkite-agent secret get AZURE_CLIENT_SECRET)
-        export AZURE_TENANT_ID=$$(buildkite-agent secret get AZURE_TENANT_ID)
-        echo "Using Buildkite Secrets"
-      else
-        echo "Using environment variables"
-      fi
-      
-      # Login
-      az login --service-principal \
-        --username "$$AZURE_CLIENT_ID" \
-        --password "$$AZURE_CLIENT_SECRET" \
-        --tenant "$$AZURE_TENANT_ID" --output none
-      
-      # List resource groups
-      echo "Resource groups in subscription:"
-      az group list --output table
-      
-      # Create verification annotation
-      RG_COUNT=$$(az group list --query "length([])" --output tsv)
-      buildkite-agent annotate --style info --context azure-verify <<EOF
-      ### :mag: Azure Access Verified
-      
-      **Resource Groups:** $$RG_COUNT  
-      **Status:** Ready for deployments
-      EOF
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login-with-fallback.sh"
+      - "bash .buildkite/scripts/verify-access.sh"
     soft_fail: true
     timeout_in_minutes: 5
