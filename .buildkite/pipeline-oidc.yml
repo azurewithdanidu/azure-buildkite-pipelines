@@ -1,0 +1,42 @@
+agents:
+  queue: "default"
+
+# OIDC variant of pipeline.yml.
+#
+# The three ARM_* values are identifiers (not secrets) and can be committed
+# to source control. If your org policy says otherwise, store them as
+# Buildkite Secrets and `export` them in az-login-oidc.sh instead.
+#
+# Set BUILDKITE_OIDC_SUBJECT_CLAIM to switch between trust scopes:
+#   pipeline_id      (default) — one Federated Identity Credential per pipeline
+#   cluster_id       — one FIC per Buildkite cluster
+#   queue_id         — one FIC per agent queue
+#   organization_id  — one FIC for the whole organization
+env:
+  ARM_CLIENT_ID:       "REPLACE-WITH-APP-REGISTRATION-CLIENT-ID"
+  ARM_TENANT_ID:       "REPLACE-WITH-ENTRA-TENANT-ID"
+  ARM_SUBSCRIPTION_ID: "REPLACE-WITH-SUBSCRIPTION-ID"
+  # BUILDKITE_OIDC_SUBJECT_CLAIM: "cluster_id"
+
+steps:
+  - label: ":azure: Install Azure CLI & OIDC Login"
+    key: "azure-setup"
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login-oidc.sh"
+    retry:
+      automatic:
+        - exit_status: "*"
+          limit: 2
+    timeout_in_minutes: 10
+
+  - wait
+
+  - label: ":white_check_mark: Verify Azure Access"
+    key: "verify-access"
+    command:
+      - "bash .buildkite/scripts/install-az.sh"
+      - "bash .buildkite/scripts/az-login-oidc.sh"
+      - "bash .buildkite/scripts/verify-access.sh"
+    soft_fail: true
+    timeout_in_minutes: 5
